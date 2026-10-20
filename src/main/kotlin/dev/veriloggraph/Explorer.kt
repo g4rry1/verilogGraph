@@ -24,14 +24,26 @@ class Explorer(
     initialRule: String = "module_declaration",
 ) {
     private data class Item(val production: Int, val dot: Int, val origin: Int)
+    private data class FirstFacts(val tokens: Map<String, Set<String>>, val nullable: Set<String>)
 
     private val chart = mutableListOf(linkedSetOf<Item>())
     private val productive: Set<String> = findProductive()
-    private val first: Map<String, Set<String>> = findFirst()
+    private val firstFacts = findFirst()
+    private val first = firstFacts.tokens
     // Only a fresh { named_rule } iteration marks another sibling construction.
     private val repeatedElements: Map<String, Set<String>> = grammar.repetitionRules.associateWith { repeat ->
-        grammar.byLeft[repeat].orEmpty().mapNotNullTo(linkedSetOf()) { production ->
-            (production.right.firstOrNull() as? Symbol.Rule)?.name?.takeIf { it in grammar.sources }
+        grammar.byLeft[repeat].orEmpty().flatMapTo(linkedSetOf()) { production ->
+            val names = linkedSetOf<String>()
+            for (symbol in production.right) {
+                when (symbol) {
+                    is Symbol.Token -> break
+                    is Symbol.Rule -> {
+                        if (symbol.name in grammar.sources) names += symbol.name
+                        if (symbol.name !in firstFacts.nullable) break
+                    }
+                }
+            }
+            names
         }
     }
     val prefix = mutableListOf<TokenKind>()
@@ -159,7 +171,7 @@ class Explorer(
         return known
     }
 
-    private fun findFirst(): Map<String, Set<String>> {
+    private fun findFirst(): FirstFacts {
         val first = grammar.byLeft.keys.associateWith { linkedSetOf<String>() }
         val nullable = mutableSetOf<String>()
         var changed: Boolean
@@ -184,6 +196,6 @@ class Explorer(
                 if (empty && nullable.add(production.left)) changed = true
             }
         } while (changed)
-        return first
+        return FirstFacts(first, nullable)
     }
 }
