@@ -14,14 +14,19 @@ fun runCli(
 ) {
     val out = PrintWriter(output)
     val reader = input.buffered()
-    val graph = TokenGraph(grammar, catalog)
     fun resolvedRule(name: String): String? = when {
         name in grammar.byLeft -> name
         "@lexer_$name" in grammar.byLeft -> "@lexer_$name"
         else -> null
     }
-    val explorer = Explorer(grammar, catalog,
-        requireNotNull(resolvedRule(initialRule)) { "Unknown grammar rule: $initialRule" })
+    val root = resolvedRule(initialRule)
+    if (root == null) {
+        out.println("Правило недоступно для пошагового просмотра: $initialRule")
+        out.flush()
+        return
+    }
+    val graph = TokenGraph(grammar, catalog)
+    val explorer = Explorer(grammar, catalog, root)
 
     fun token(value: String): TokenKind? = catalog.byName[value] ?: catalog.bySpelling[value]
     fun visibleRule(name: String) = name.removePrefix("@lexer_")

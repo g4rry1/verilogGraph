@@ -71,6 +71,12 @@ class CliTest {
         assertContains(output, "GenerateKeyword (generate)")
     }
 
+    @Test fun unavailableInitialRuleIsReportedWithoutStartingSession() {
+        val output = session("step module\n", "NoSuchRule")
+        assertContains(output, "Правило недоступно для пошагового просмотра: NoSuchRule")
+        assertFalse(output.contains("vg>"))
+    }
+
     @Test fun rulesSearchFindsConstructs() {
         val output = session("rules package_declaration\nquit\n")
         assertContains(output, "Найдено: 1")
