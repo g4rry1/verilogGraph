@@ -13,6 +13,9 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.geom.CubicCurve2D
 import java.awt.geom.RoundRectangle2D
+import java.awt.image.BufferedImage
+import java.nio.file.Path
+import javax.imageio.ImageIO
 import javax.swing.BorderFactory
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -267,6 +270,19 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
         }
         details.caretPosition = 0
     }
+}
+
+fun saveModulePreview(catalog: TokenCatalog, grammar: Grammar, path: Path) {
+    val explorer = Explorer(grammar, catalog)
+    check(explorer.advance("ModuleKeyword"))
+    val canvas = GraphCanvas { }
+    canvas.show(catalog.byName["ModuleKeyword"], explorer.next(), true)
+    canvas.setSize(900, 450)
+    val image = BufferedImage(900, 450, BufferedImage.TYPE_INT_ARGB)
+    val graphics = image.createGraphics()
+    canvas.paint(graphics)
+    graphics.dispose()
+    ImageIO.write(image, "png", path.toFile())
 }
 
 private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() {

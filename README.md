@@ -2,6 +2,8 @@
 
 Интерактивный граф видов токенов SystemVerilog на Kotlin/Swing. В левой панели — все 352 `TokenKind` из закреплённой ревизии [slang](https://github.com/MikePopoloski/slang). В центре — вершина и непосредственные допустимые продолжения; щелчок по вершине продвигает просмотр. Для `module` сохраняется грамматический контекст `module_declaration`, так что каждый следующий шаг относится к тому же префиксу конструкции.
 
+![Граф допустимых продолжений module](docs/module-preview.png)
+
 ## Источники
 
 - [IEEE Std 1800-2023](https://ieeexplore.ieee.org/document/10458102), Annex A — формальный синтаксис. [Страница IEEE](https://standards.ieee.org/ieee/1800/7743/) подтверждает редакцию и бесплатный доступ через IEEE Get.
@@ -19,9 +21,11 @@
 ./gradlew run --args='--check'
 ./gradlew run --args='--audit'
 ./gradlew run --args='--export-dot graph.dot'
+./gradlew run --args='--preview preview.png'
 ```
 
 `--check` проверяет ключевой путь: `module → Identifier → ; → endmodule` и вариант с `automatic`. `--audit` дополнительно печатает обозначения, которые текстовая транскрипция не позволяет однозначно сопоставить с токеном. DOT экспортирует весь полученный граф с правилом происхождения на каждом ребре.
+`--preview` сохраняет изображение сценария `module → …` без запуска оконной системы.
 
 ## Как устроены переходы
 

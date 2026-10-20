@@ -5,6 +5,7 @@ import java.nio.file.Path
 import java.nio.file.Files
 
 fun main(args: Array<String>) {
+    if (args.firstOrNull() == "--preview") System.setProperty("java.awt.headless", "true")
     val catalog = TokenCatalog.bundled()
     val grammar = Grammar.bundled(catalog)
     val explorer = Explorer(grammar, catalog)
@@ -14,6 +15,13 @@ fun main(args: Array<String>) {
         require(args.size == 2) { "Usage: --export-dot output.dot" }
         Files.writeString(Path.of(args[1]), graph.toDot())
         println("Wrote ${graph.vertexCount} vertices and ${graph.edgeCount} edges to ${args[1]}")
+        return
+    }
+
+    if (args.firstOrNull() == "--preview") {
+        require(args.size == 2) { "Usage: --preview output.png" }
+        saveModulePreview(catalog, grammar, Path.of(args[1]))
+        println("Wrote module graph preview to ${args[1]}")
         return
     }
 
