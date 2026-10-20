@@ -5,13 +5,17 @@ import java.util.ArrayDeque
 data class Candidate(val token: TokenKind, val rules: Set<String>)
 
 /** Earley prefix recognizer. Each click extends one grammar-valid token prefix. */
-class Explorer(private val grammar: Grammar, private val catalog: TokenCatalog) {
+class Explorer(
+    private val grammar: Grammar,
+    private val catalog: TokenCatalog,
+    initialRule: String = "module_declaration",
+) {
     private data class Item(val production: Int, val dot: Int, val origin: Int)
 
     private val chart = mutableListOf(linkedSetOf<Item>())
     private val productive: Set<String> = findProductive()
     val prefix = mutableListOf<TokenKind>()
-    var root: String = "module_declaration"
+    var root: String = initialRule
         private set
 
     init {
