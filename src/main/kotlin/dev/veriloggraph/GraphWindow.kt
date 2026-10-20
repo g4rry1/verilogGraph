@@ -39,7 +39,7 @@ private val light = Color(232, 239, 250)
 private val accent = Color(69, 203, 177)
 
 class GraphWindow(private val catalog: TokenCatalog, private val grammar: Grammar) : JFrame("VerilogGraph — IEEE 1800-2023") {
-    private val explorer = Explorer(grammar, catalog)
+    private val explorer = Explorer(grammar, catalog, "source_text")
     private val tokenGraph = TokenGraph(grammar, catalog)
     private val search = JTextField()
     private val tokenModel = DefaultListModel<TokenKind>()
@@ -142,6 +142,12 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
             }
         })
         actions.add(button("↺ module") { openModule() })
+        actions.add(button("↺ файл") {
+            globalToken = null
+            explorer.reset("source_text")
+            showingNext = true
+            refresh()
+        })
         actions.add(button("→ Дальше") {
             showingNext = true
             refresh()
@@ -209,7 +215,7 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
     }
 
     private fun selectToken(token: TokenKind) {
-        explorer.reset()
+        explorer.reset("source_text")
         globalToken = null
         showingNext = explorer.advance(token.name)
         if (!showingNext) {
@@ -221,7 +227,7 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
 
     private fun openModule() {
         globalToken = null
-        explorer.reset()
+        explorer.reset("source_text")
         check(explorer.advance("ModuleKeyword"))
         showingNext = false
         refresh()
@@ -251,14 +257,17 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
         val current = explorer.prefix.lastOrNull()
         path.text = explorer.prefix.joinToString("  →  ") { it.label }
         val candidates = if (showingNext) explorer.next() else emptyList()
-        graph.show(current, candidates, showingNext)
+        graph.show(current, candidates, showingNext, contextual = true)
         details.text = buildString {
             append("Контекст: ").append(explorer.root).append("\n")
             append("Префикс: ").append(explorer.prefix.joinToString(" ") { it.label }).append("\n")
             if (explorer.isComplete()) append("Правило может завершиться здесь.\n")
             if (!showingNext) append("Нажмите «→ Дальше», чтобы увидеть непосредственные продолжения.\n")
+            if (showingNext) append("Начало отмечает именованное правило Annex A, которое может начаться на следующем токене.\n")
             for (candidate in candidates) {
                 append("\n").append(candidate.token.label).append("  [").append(candidate.token.name).append("]\n")
+                if (candidate.starts.isEmpty()) append("  Без начала нового именованного правила.\n")
+                else append("  Могут начаться: ").append(candidate.starts.joinToString()).append("\n")
                 for (name in candidate.rules.take(3)) {
                     val source = grammar.sources[name]
                     if (source != null) append("  ").append(source.section).append("  ")
@@ -273,10 +282,10 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
 }
 
 fun saveModulePreview(catalog: TokenCatalog, grammar: Grammar, path: Path) {
-    val explorer = Explorer(grammar, catalog)
+    val explorer = Explorer(grammar, catalog, "source_text")
     check(explorer.advance("ModuleKeyword"))
     val canvas = GraphCanvas { }
-    canvas.show(catalog.byName["ModuleKeyword"], explorer.next(), true)
+    canvas.show(catalog.byName["ModuleKeyword"], explorer.next(), true, contextual = true)
     canvas.setSize(900, 450)
     val image = BufferedImage(900, 450, BufferedImage.TYPE_INT_ARGB)
     val graphics = image.createGraphics()
@@ -289,6 +298,7 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
     private var current: TokenKind? = null
     private var successors = emptyList<Candidate>()
     private var revealed = false
+    private var contextual = false
     private val hitboxes = mutableListOf<Pair<java.awt.Rectangle, Candidate>>()
 
     init {
@@ -307,10 +317,11 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
         })
     }
 
-    fun show(current: TokenKind?, successors: List<Candidate>, revealed: Boolean) {
+    fun show(current: TokenKind?, successors: List<Candidate>, revealed: Boolean, contextual: Boolean = false) {
         this.current = current
         this.successors = successors
         this.revealed = revealed
+        this.contextual = contextual
         preferredSize = Dimension(900, maxOf(450, 100 + successors.size * 65))
         revalidate()
         repaint()
@@ -348,20 +359,28 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
                 val tx = 430
                 val tw = 300
                 val th = 47
-                g2.color = Color(58, 96, 114)
+                val begins = contextual && candidate.starts.isNotEmpty()
+                g2.color = if (begins) accent else Color(58, 96, 114)
                 g2.stroke = BasicStroke(1.7f)
                 g2.draw(CubicCurve2D.Float((x + w).toFloat(), centerY.toFloat(), 345f, centerY.toFloat(), 375f, (y + 23).toFloat(), tx.toFloat(), (y + 23).toFloat()))
                 g2.fillPolygon(intArrayOf(tx - 1, tx - 9, tx - 9), intArrayOf(y + 23, y + 18, y + 28), 3)
                 g2.color = Color(34, 49, 69)
                 g2.fill(RoundRectangle2D.Float(tx.toFloat(), y.toFloat(), tw.toFloat(), th.toFloat(), 15f, 15f))
-                g2.color = Color(61, 87, 112)
+                g2.color = if (begins) accent else Color(61, 87, 112)
                 g2.draw(RoundRectangle2D.Float(tx.toFloat(), y.toFloat(), tw.toFloat(), th.toFloat(), 15f, 15f))
                 g2.color = light
-                g2.font = Font("SansSerif", Font.BOLD, 15)
-                g2.drawString(candidate.token.label.take(27), tx + 14, y + 29)
+                g2.font = Font("SansSerif", Font.BOLD, 14)
+                g2.drawString(candidate.token.label.take(19), tx + 14, y + 21)
                 g2.font = Font("Monospaced", Font.PLAIN, 10)
                 g2.color = muted
-                g2.drawString(candidate.token.name.take(22), tx + 160, y + 28)
+                g2.drawString(candidate.token.name.take(20), tx + 160, y + 20)
+                if (contextual) {
+                    g2.color = if (begins) accent else muted
+                    val rule = candidate.starts.firstOrNull { it.endsWith("_declaration") || it.endsWith("_construct") }
+                        ?: candidate.starts.firstOrNull()
+                    val label = if (rule == null) "без начала нового правила" else "начало: $rule"
+                    g2.drawString(label.take(45), tx + 14, y + 38)
+                }
                 hitboxes += java.awt.Rectangle(tx, y, tw, th) to candidate
             }
         } else {

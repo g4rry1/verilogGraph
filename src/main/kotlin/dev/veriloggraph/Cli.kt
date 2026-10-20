@@ -35,7 +35,7 @@ fun runCli(
         out.println("Префикс: ${explorer.prefix.joinToString(" ") { it.tokenText() }.ifEmpty { "(пусто)" }}")
         out.println(if (explorer.isComplete()) "Конструкция может завершиться здесь." else "Конструкция пока не завершена.")
     }
-    fun candidates(items: List<Candidate>, limit: Int = 40) {
+    fun candidates(items: List<Candidate>, limit: Int = 40, contextual: Boolean = true) {
         if (items.isEmpty()) {
             out.println("Следующих токенов нет.")
             return
@@ -44,7 +44,12 @@ fun runCli(
         for (item in items.take(limit)) {
             val sources = item.rules.take(3).joinToString()
             val more = if (item.rules.size > 3) " (+${item.rules.size - 3})" else ""
-            out.println("  ${item.token.tokenText()}  ←  $sources$more")
+            val boundary = when {
+                !contextual -> ""
+                item.starts.isEmpty() -> "  [без начала нового правила]"
+                else -> "  [начало: ${item.starts.joinToString()}]"
+            }
+            out.println("  ${item.token.tokenText()}  ←  $sources$more$boundary")
         }
         if (items.size > limit) out.println("Показаны первые $limit; используйте фильтр команды.")
     }
@@ -124,7 +129,7 @@ fun runCli(
                         query.isEmpty() || query == "*" ||
                             it.token.name.contains(query, true) || it.token.label.contains(query, true)
                     }
-                    candidates(items, if (query == "*") Int.MAX_VALUE else 40)
+                    candidates(items, if (query == "*") Int.MAX_VALUE else 40, contextual = false)
                 }
             }
             "edge" -> {

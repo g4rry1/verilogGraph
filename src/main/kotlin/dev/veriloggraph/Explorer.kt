@@ -2,7 +2,12 @@ package dev.veriloggraph
 
 import java.util.ArrayDeque
 
-data class Candidate(val token: TokenKind, val rules: Set<String>)
+data class Candidate(
+    val token: TokenKind,
+    val rules: Set<String>,
+    /** Named Annex A rules that can begin at this token in the current prefix. */
+    val starts: Set<String> = emptySet(),
+)
 
 /** Earley prefix recognizer. Each click extends one grammar-valid token prefix. */
 class Explorer(
@@ -14,6 +19,7 @@ class Explorer(
 
     private val chart = mutableListOf(linkedSetOf<Item>())
     private val productive: Set<String> = findProductive()
+    private val first: Map<String, Set<String>> = findFirst()
     val prefix = mutableListOf<TokenKind>()
     var root: String = initialRule
         private set
@@ -36,13 +42,20 @@ class Explorer(
 
     fun next(): List<Candidate> {
         val groups = linkedMapOf<String, MutableSet<String>>()
+        val startingRules = chart.last().asSequence()
+            .filter { item -> item.origin == prefix.size && item.dot == 0 }
+            .map { item -> grammar.productions[item.production].left }
+            .filter { it in grammar.sources }
+            .distinct().toList()
         for (item in chart.last()) {
             val production = grammar.productions[item.production]
             val token = production.right.getOrNull(item.dot) as? Symbol.Token ?: continue
             groups.getOrPut(token.kind) { linkedSetOf() } += production.source
         }
         return groups.mapNotNull { (name, rules) ->
-            catalog.byName[name]?.let { Candidate(it, rules) }
+            catalog.byName[name]?.let { token ->
+                Candidate(token, rules, startingRules.filterTo(linkedSetOf()) { name in first[it].orEmpty() })
+            }
         }.sortedWith(compareBy({ it.token.spelling == null }, { it.token.label }))
     }
 
@@ -125,5 +138,33 @@ class Explorer(
             }
         } while (changed)
         return known
+    }
+
+    private fun findFirst(): Map<String, Set<String>> {
+        val first = grammar.byLeft.keys.associateWith { linkedSetOf<String>() }
+        val nullable = mutableSetOf<String>()
+        var changed: Boolean
+        do {
+            changed = false
+            for (production in grammar.productions) {
+                if (!production.isProductive()) continue
+                var empty = true
+                for (symbol in production.right) {
+                    when (symbol) {
+                        is Symbol.Token -> {
+                            if (first.getValue(production.left).add(symbol.kind)) changed = true
+                            empty = false
+                        }
+                        is Symbol.Rule -> {
+                            if (first.getValue(production.left).addAll(first[symbol.name].orEmpty())) changed = true
+                            empty = symbol.name in nullable
+                        }
+                    }
+                    if (!empty) break
+                }
+                if (empty && nullable.add(production.left)) changed = true
+            }
+        } while (changed)
+        return first
     }
 }
