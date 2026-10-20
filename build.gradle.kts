@@ -19,6 +19,10 @@ application {
     mainClass.set("dev.veriloggraph.MainKt")
 }
 
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
+}
+
 val grammarCheck by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Checks representative Annex A token paths and graph edges"

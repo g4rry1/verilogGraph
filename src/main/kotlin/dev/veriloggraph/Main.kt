@@ -3,11 +3,24 @@ package dev.veriloggraph
 import javax.swing.SwingUtilities
 import java.nio.file.Path
 import java.nio.file.Files
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 
 fun main(args: Array<String>) {
+    if (args.firstOrNull() == "--help") {
+        println("Usage: veriloggraph [--cli [rule] | --check | --audit | --export-dot file.dot | --preview file.png]")
+        println("Without arguments, opens the Swing GUI.")
+        return
+    }
     if (args.firstOrNull() == "--preview") System.setProperty("java.awt.headless", "true")
     val catalog = TokenCatalog.bundled()
     val grammar = Grammar.bundled(catalog)
+    if (args.firstOrNull() == "--cli") {
+        require(args.size <= 2) { "Usage: --cli [rule]" }
+        runCli(catalog, grammar, InputStreamReader(System.`in`), OutputStreamWriter(System.out),
+            args.getOrElse(1) { "module_declaration" })
+        return
+    }
     val explorer = Explorer(grammar, catalog)
     val graph = TokenGraph(grammar, catalog)
 
