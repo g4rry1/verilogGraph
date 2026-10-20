@@ -6,7 +6,7 @@
 
 ## Источники
 
-- [IEEE Std 1800-2023](https://ieeexplore.ieee.org/document/10458102), Annex A — формальный синтаксис. [Страница IEEE](https://standards.ieee.org/ieee/1800/7743/) подтверждает редакцию и бесплатный доступ через IEEE Get.
+- [IEEE Std 1800-2023](https://ieeexplore.ieee.org/document/10458102), Annex A — формальный синтаксис. [Страница IEEE](https://standards.ieee.org/ieee/1800/7743/) подтверждает редакцию и бесплатный доступ через IEEE Get. [Публичная копия PDF](https://www.iccircle.com/static/upload/img20240319175450.pdf) использована для сверки правил `module_declaration`.
 - [`scripts/grammar.txt`](https://github.com/MikePopoloski/slang/blob/master/scripts/grammar.txt) в slang — текстовая транскрипция Annex A, используемая приложением.
 - [`scripts/tokenkinds.txt`](https://github.com/MikePopoloski/slang/blob/master/scripts/tokenkinds.txt) и [`LexerFacts.cpp`](https://github.com/MikePopoloski/slang/blob/master/source/parsing/LexerFacts.cpp) — список видов токенов и их фиксированные написания.
 
