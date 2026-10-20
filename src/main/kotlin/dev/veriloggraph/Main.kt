@@ -102,6 +102,12 @@ fun main(args: Array<String>) {
         check(explorer.advance("IntegerBase"))
         check(explorer.next().map { it.token.name }.toSet() ==
             setOf("IntegerLiteral", "Identifier", "Question"))
+        explorer.reset("edge_control_specifier")
+        check(explorer.advance("EdgeKeyword"))
+        check(explorer.advance("OpenBracket"))
+        check(explorer.next().map { it.token.name }.toSet() == setOf("IntegerLiteral", "Identifier"))
+        check(grammar.byLeft["class_qualifier"].orEmpty().isNotEmpty())
+        check(grammar.byLeft["incomplete_class_scoped_type"].orEmpty().isNotEmpty())
         println("Grammar path checks passed")
         return
     }

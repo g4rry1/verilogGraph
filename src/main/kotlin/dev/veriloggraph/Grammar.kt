@@ -108,14 +108,14 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         val rawRules = splitRules(text)
         val names = rawRules.keys
         for (name in names) {
-            for (kind in lexicalVariants(name).orEmpty()) {
+            for (kinds in lexicalSequences(name).orEmpty()) {
                 val alias = "@lexer_$name"
-                output += Production(output.size, alias, listOf(Symbol.Token(kind)), name)
+                output += Production(output.size, alias, kinds.map(Symbol::Token), name)
             }
         }
         for ((name, source) in rawRules) {
             // Annex A describes lexemes as characters; slang already groups them into TokenKind.
-            if (lexicalClass(name) != null || lexicalVariants(name) != null) continue
+            if (lexicalClass(name) != null || lexicalSequences(name) != null) continue
             try {
                 val words = tokenize(source.text.substringAfter("::="))
                 val expression = ExpressionParser(words).parse()
@@ -132,7 +132,7 @@ class GrammarImporter(private val catalog: TokenCatalog) {
     private fun splitRules(text: String): Map<String, RuleSource> {
         val entries = linkedMapOf<String, RuleSource>()
         val start = Regex("^(\\$?[A-Za-z_][A-Za-z_0-9]*(?:,[0-9]+)?)\\s*::=\\s*(.*)$")
-        val malformed = Regex("^[A-Za-z_][A-Za-z_0-9]*\\s*(?:::\\s+=|:=).*$")
+        val malformed = Regex("^([A-Za-z_][A-Za-z_0-9]*)\\s*(::\\s+=|:=)\\s*(.*)$")
         var section = "Annex A"
         var ruleSection = section
         var name: String? = null
@@ -155,10 +155,19 @@ class GrammarImporter(private val catalog: TokenCatalog) {
                 section = trimmed
                 continue
             }
-            if (malformed.matches(trimmed)) {
+            val broken = malformed.matchEntire(trimmed)
+            if (broken != null) {
                 finish()
-                name = null
-                problems += "Malformed rule heading in $section: $trimmed"
+                val brokenName = broken.groupValues[1]
+                if (brokenName in setOf("incomplete_class_scoped_type", "class_qualifier")) {
+                    problems += "Normalized malformed rule heading in $section: $trimmed"
+                    name = brokenName
+                    ruleSection = section
+                    body.append(name).append(" ::= ").append(broken.groupValues[3])
+                } else {
+                    problems += "Malformed rule heading in $section: $trimmed"
+                    name = null
+                }
                 continue
             }
             val match = start.matchEntire(trimmed)
@@ -275,8 +284,8 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         catalog.bySpelling[word]?.let { return Symbol.Token(it.name) }
         lexicalClass(word)?.let { return Symbol.Token(it) }
         lexicalClass(plain)?.let { return Symbol.Token(it) }
-        lexicalVariants(word)?.let { return Symbol.Rule("@lexer_$word") }
-        lexicalVariants(plain)?.let { return Symbol.Rule("@lexer_$plain") }
+        lexicalSequences(word)?.let { return Symbol.Rule("@lexer_$word") }
+        lexicalSequences(plain)?.let { return Symbol.Rule("@lexer_$plain") }
         if (word in names) return Symbol.Rule(word)
         if (word.startsWith('$') && word.length > 1 && word[1].isLetter())
             return Symbol.Token("SystemIdentifier")
@@ -305,19 +314,26 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         else -> null
     }
 
-    private fun lexicalVariants(name: String): List<String>? = when (name) {
+    private fun lexicalSequences(name: String): List<List<String>>? = when (name) {
         // Each branch has a one-token witness in Annex A's digit grammar: 1, x, or ?.
         // slang Lexer's IntegerBase is followed by exactly these TokenKind values
         // for those spellings. Longer digit strings may span multiple lexer tokens.
         "binary_value", "octal_value", "hex_value" ->
-            listOf("IntegerLiteral", "Identifier", "Question")
-        "x_digit" -> listOf("Identifier")
-        "z_digit" -> listOf("Identifier", "Question")
+            listOf("IntegerLiteral", "Identifier", "Question").map(::listOf)
+        "x_digit" -> listOf(listOf("Identifier"))
+        "z_digit" -> listOf(listOf("Identifier"), listOf("Question"))
         // UDP table symbols are single source characters. slang lexes the
         // letter variants as Identifier and the punctuation as its own kind.
-        "output_symbol" -> listOf("IntegerLiteral", "Identifier")
-        "level_symbol" -> listOf("IntegerLiteral", "Identifier", "Question")
-        "edge_symbol" -> listOf("Identifier", "Star")
+        "output_symbol" -> listOf("IntegerLiteral", "Identifier").map(::listOf)
+        "level_symbol" -> listOf("IntegerLiteral", "Identifier", "Question").map(::listOf)
+        "edge_symbol" -> listOf("Identifier", "Star").map(::listOf)
+        // Annex A permits 01/10, x0/0x, z1/1z and their case variants.
+        // slang Parser_members.cpp::parseEdgeDescriptor consumes these as one
+        // IntegerLiteral, one Identifier, or IntegerLiteral then Identifier.
+        "edge_descriptor" -> listOf(
+            listOf("IntegerLiteral"), listOf("Identifier"),
+            listOf("IntegerLiteral", "Identifier")
+        )
         else -> null
     }
 }
