@@ -1,0 +1,6 @@
+IEEE Std 1800-2023, Annex A (formal syntax)
+https://ieeexplore.ieee.org/document/10458102
+Grammar transcription and lexer inventory: MikePopoloski/slang (MIT license)
+https://github.com/MikePopoloski/slang/tree/dcc7ee97fb14f9be003de71e100d0c9601a993c9/scripts
+slang revision: dcc7ee97fb14f9be003de71e100d0c9601a993c9
+Input: scripts/grammar.txt, scripts/tokenkinds.txt, source/parsing/LexerFacts.cpp
