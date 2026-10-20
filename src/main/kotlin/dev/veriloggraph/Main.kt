@@ -33,7 +33,10 @@ fun main(args: Array<String>) {
         val reachable = grammar.reachableFrom("source_text", "library_text")
         println("Reachable from source_text/library_text: ${reachable.count { it in grammar.sources }} named rules; " +
             "${reachable.count { it.startsWith("?") }} unresolved symbols")
-        if (args.first() == "--audit") println(grammar.unresolvedSymbols.joinToString())
+        if (args.first() == "--audit") {
+            println("Reachable unresolved: " + reachable.filter { it.startsWith("?") }.sorted().joinToString())
+            println("All unresolved: " + grammar.unresolvedSymbols.joinToString())
+        }
         println("Import diagnostics: ${grammar.diagnostics.size}")
         grammar.diagnostics.take(12).forEach(::println)
         val module = requireNotNull(catalog.bySpelling["module"])
