@@ -315,6 +315,19 @@ class GrammarImporter(private val catalog: TokenCatalog) {
     }
 
     private fun lexicalSequences(name: String): List<List<String>>? = when (name) {
+        // Annex A's decimal_number has one bare-number branch and sized or
+        // unsized based branches. In slang, x/z plus any underscores is one
+        // Identifier; ? followed by underscores is Question then Identifier.
+        "decimal_number" -> {
+            val values = listOf(
+                listOf("IntegerLiteral"), listOf("Identifier"),
+                listOf("Question"), listOf("Question", "Identifier")
+            )
+            listOf(listOf("IntegerLiteral")) + values.flatMap { value ->
+                listOf(listOf("IntegerBase") + value,
+                    listOf("IntegerLiteral", "IntegerBase") + value)
+            }
+        }
         // Each branch has a one-token witness in Annex A's digit grammar: 1, x, or ?.
         // slang Lexer's IntegerBase is followed by exactly these TokenKind values
         // for those spellings. Longer digit strings may span multiple lexer tokens.

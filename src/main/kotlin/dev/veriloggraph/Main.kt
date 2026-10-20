@@ -62,6 +62,12 @@ fun main(args: Array<String>) {
         check(explorer.advance("Semicolon"))
         check(explorer.advance("EndModuleKeyword"))
         check(explorer.isComplete())
+        explorer.reset()
+        for (kind in listOf("ModuleKeyword", "Identifier", "OpenParenthesis",
+                "CloseParenthesis", "Semicolon", "EndModuleKeyword")) {
+            check(explorer.advance(kind)) { "Invalid module header token: $kind" }
+        }
+        check(explorer.isComplete())
         explorer.reset("assignment_pattern")
         check(explorer.next().map { it.token.name }.toSet() == setOf("ApostropheOpenBrace"))
         check(explorer.advance("ApostropheOpenBrace"))
@@ -98,10 +104,12 @@ fun main(args: Array<String>) {
         check(grammar.byLeft["trans_range_list"].orEmpty().any { production ->
             Symbol.Token("OpenBracket") in production.right && Symbol.Token("MinusArrow") in production.right
         })
-        explorer.reset("decimal_number")
+        explorer.reset("number")
         check(explorer.advance("IntegerBase"))
         check(explorer.next().map { it.token.name }.toSet() ==
             setOf("IntegerLiteral", "Identifier", "Question"))
+        check(explorer.advance("Question"))
+        check("Identifier" in explorer.next().map { it.token.name })
         explorer.reset("edge_control_specifier")
         check(explorer.advance("EdgeKeyword"))
         check(explorer.advance("OpenBracket"))
