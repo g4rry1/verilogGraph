@@ -23,6 +23,8 @@
 ./gradlew run --args='--audit'
 ./gradlew run --args='--export-dot graph.dot'
 ./gradlew run --args='--preview preview.png'
+./gradlew installDist
+build/install/veriloggraph/bin/veriloggraph
 ```
 
 `./gradlew check` запускает проверки графа автоматически. `--check` проверяет путь `module → Identifier → ; → endmodule`, вариант с `automatic`, буквальные скобки, числовую основу и системные проверки времени. `--audit` печатает обозначения, которые нельзя однозначно сопоставить с токеном. DOT экспортирует весь полученный граф с правилом происхождения на каждом ребре.
