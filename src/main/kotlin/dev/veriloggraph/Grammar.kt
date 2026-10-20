@@ -14,6 +14,8 @@ class Grammar internal constructor(
     val productions: List<Production>,
     val sources: Map<String, RuleSource>,
     val diagnostics: List<String>,
+    /** Generated rules for Annex A repetitions written with braces. */
+    val repetitionRules: Set<String>,
 ) {
     val byLeft = productions.groupBy { it.left }
     val unresolvedSymbols: Set<String> = productions.asSequence()
@@ -102,6 +104,7 @@ class GrammarImporter(private val catalog: TokenCatalog) {
     private val problems = mutableListOf<String>()
     private val output = mutableListOf<Production>()
     private val sourceMap = linkedMapOf<String, RuleSource>()
+    private val repetitionRules = linkedSetOf<String>()
     private var hidden = 0
 
     fun parse(text: String): Grammar {
@@ -130,7 +133,7 @@ class GrammarImporter(private val catalog: TokenCatalog) {
                 problems += "$name (${source.section}): ${exception.message}"
             }
         }
-        return Grammar(output, sourceMap, problems)
+        return Grammar(output, sourceMap, problems, repetitionRules)
     }
 
     private fun splitRules(text: String): Map<String, RuleSource> {
@@ -267,6 +270,7 @@ class GrammarImporter(private val catalog: TokenCatalog) {
                     alternatives(expr.child).forEach { emit(inner, it, source, names) }
                 }
                 is Expr.Repeat -> {
+                    repetitionRules += inner
                     output += Production(output.size, inner, emptyList(), source)
                     for (alternative in alternatives(expr.child)) {
                         val sequence = if (alternative is Expr.Sequence) alternative.parts else listOf(alternative)

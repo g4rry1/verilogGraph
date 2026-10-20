@@ -46,8 +46,9 @@ fun runCli(
             val more = if (item.rules.size > 3) " (+${item.rules.size - 3})" else ""
             val boundary = when {
                 !contextual -> ""
-                item.starts.isEmpty() -> "  [без начала нового правила]"
-                else -> "  [начало: ${item.starts.joinToString()}]"
+                item.beginsConstruction -> "  [новая конструкция: ${item.displayedConstruction()}]"
+                item.starts.isNotEmpty() -> "  [продолжение; подправило: ${item.starts.joinToString()}]"
+                else -> "  [продолжение]"
             }
             out.println("  ${item.token.tokenText()}  ←  $sources$more$boundary")
         }

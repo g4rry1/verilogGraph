@@ -7,7 +7,15 @@ data class Candidate(
     val rules: Set<String>,
     /** Named Annex A rules that can begin at this token in the current prefix. */
     val starts: Set<String> = emptySet(),
-)
+    /** Named elements of Annex A repetitions that can begin here. */
+    val newElements: Set<String> = emptySet(),
+) {
+    val beginsConstruction: Boolean get() = newElements.isNotEmpty()
+
+    fun displayedConstruction(): String? = if (!beginsConstruction) null else
+        starts.firstOrNull { it.endsWith("_declaration") || it.endsWith("_construct") }
+            ?: newElements.firstOrNull()
+}
 
 /** Earley prefix recognizer. Each click extends one grammar-valid token prefix. */
 class Explorer(
@@ -20,6 +28,12 @@ class Explorer(
     private val chart = mutableListOf(linkedSetOf<Item>())
     private val productive: Set<String> = findProductive()
     private val first: Map<String, Set<String>> = findFirst()
+    // Only a fresh { named_rule } iteration marks another sibling construction.
+    private val repeatedElements: Map<String, Set<String>> = grammar.repetitionRules.associateWith { repeat ->
+        grammar.byLeft[repeat].orEmpty().mapNotNullTo(linkedSetOf()) { production ->
+            (production.right.firstOrNull() as? Symbol.Rule)?.name?.takeIf { it in grammar.sources }
+        }
+    }
     val prefix = mutableListOf<TokenKind>()
     var root: String = initialRule
         private set
@@ -42,11 +56,12 @@ class Explorer(
 
     fun next(): List<Candidate> {
         val groups = linkedMapOf<String, MutableSet<String>>()
-        val startingRules = chart.last().asSequence()
+        val freshRules = chart.last().asSequence()
             .filter { item -> item.origin == prefix.size && item.dot == 0 }
             .map { item -> grammar.productions[item.production].left }
-            .filter { it in grammar.sources }
             .distinct().toList()
+        val startingRules = freshRules.filter { it in grammar.sources }
+        val repeatedHere = freshRules.filter { it in grammar.repetitionRules }
         for (item in chart.last()) {
             val production = grammar.productions[item.production]
             val token = production.right.getOrNull(item.dot) as? Symbol.Token ?: continue
@@ -54,7 +69,11 @@ class Explorer(
         }
         return groups.mapNotNull { (name, rules) ->
             catalog.byName[name]?.let { token ->
-                Candidate(token, rules, startingRules.filterTo(linkedSetOf()) { name in first[it].orEmpty() })
+                val starts = startingRules.filterTo(linkedSetOf()) { name in first[it].orEmpty() }
+                val newElements = repeatedHere.flatMapTo(linkedSetOf()) { repeatedElements[it].orEmpty() }
+                    .filterTo(linkedSetOf()) { it in starts }
+                if (prefix.isEmpty() && root in starts) newElements += root
+                Candidate(token, rules, starts, newElements)
             }
         }.sortedWith(compareBy({ it.token.spelling == null }, { it.token.label }))
     }

@@ -263,11 +263,14 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
             append("Префикс: ").append(explorer.prefix.joinToString(" ") { it.label }).append("\n")
             if (explorer.isComplete()) append("Правило может завершиться здесь.\n")
             if (!showingNext) append("Нажмите «→ Дальше», чтобы увидеть непосредственные продолжения.\n")
-            if (showingNext) append("Начало отмечает именованное правило Annex A, которое может начаться на следующем токене.\n")
+            if (showingNext) append("Новая конструкция отмечает следующий именованный элемент повтора Annex A; подправила остаются внутри текущей конструкции.\n")
             for (candidate in candidates) {
                 append("\n").append(candidate.token.label).append("  [").append(candidate.token.name).append("]\n")
-                if (candidate.starts.isEmpty()) append("  Без начала нового именованного правила.\n")
-                else append("  Могут начаться: ").append(candidate.starts.joinToString()).append("\n")
+                if (candidate.beginsConstruction) append("  Может начаться новая конструкция: ")
+                    .append(candidate.displayedConstruction()).append("\n")
+                else append("  Продолжение текущей конструкции.\n")
+                if (candidate.starts.isNotEmpty()) append("  Начинающиеся правила: ")
+                    .append(candidate.starts.joinToString()).append("\n")
                 for (name in candidate.rules.take(3)) {
                     val source = grammar.sources[name]
                     if (source != null) append("  ").append(source.section).append("  ")
@@ -359,7 +362,7 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
                 val tx = 430
                 val tw = 300
                 val th = 47
-                val begins = contextual && candidate.starts.isNotEmpty()
+                val begins = contextual && candidate.beginsConstruction
                 g2.color = if (begins) accent else Color(58, 96, 114)
                 g2.stroke = BasicStroke(1.7f)
                 g2.draw(CubicCurve2D.Float((x + w).toFloat(), centerY.toFloat(), 345f, centerY.toFloat(), 375f, (y + 23).toFloat(), tx.toFloat(), (y + 23).toFloat()))
@@ -376,9 +379,9 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
                 g2.drawString(candidate.token.name.take(20), tx + 160, y + 20)
                 if (contextual) {
                     g2.color = if (begins) accent else muted
-                    val rule = candidate.starts.firstOrNull { it.endsWith("_declaration") || it.endsWith("_construct") }
-                        ?: candidate.starts.firstOrNull()
-                    val label = if (rule == null) "без начала нового правила" else "начало: $rule"
+                    val label = if (begins) "новая конструкция: ${candidate.displayedConstruction()}"
+                        else candidate.starts.lastOrNull()?.let { "продолжение · $it" }
+                            ?: "продолжение текущей конструкции"
                     g2.drawString(label.take(45), tx + 14, y + 38)
                 }
                 hitboxes += java.awt.Rectangle(tx, y, tw, th) to candidate
