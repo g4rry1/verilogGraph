@@ -23,6 +23,19 @@ class Grammar internal constructor(
         .filter { it.startsWith("?") }
         .toSortedSet()
 
+    fun reachableFrom(vararg roots: String): Set<String> {
+        val reached = linkedSetOf<String>()
+        val queue = ArrayDeque(roots.toList())
+        while (queue.isNotEmpty()) {
+            val name = queue.removeFirst()
+            if (!reached.add(name)) continue
+            for (production in byLeft[name].orEmpty()) for (symbol in production.right) {
+                if (symbol is Symbol.Rule && symbol.name !in reached) queue.add(symbol.name)
+            }
+        }
+        return reached
+    }
+
     companion object {
         fun bundled(catalog: TokenCatalog): Grammar {
             val text = requireNotNull(Grammar::class.java.getResourceAsStream("/ieee1800-2023-annex-a.txt"))

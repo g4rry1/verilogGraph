@@ -22,6 +22,9 @@ fun main(args: Array<String>) {
         println("Annex A rules: ${grammar.sources.size}; productions: ${grammar.productions.size}")
         println("Derived graph: ${graph.vertexCount} vertices; ${graph.edgeCount} edges")
         println("Unresolved grammar symbols: ${grammar.unresolvedSymbols.size}")
+        val reachable = grammar.reachableFrom("source_text", "library_text")
+        println("Reachable from source_text/library_text: ${reachable.count { it in grammar.sources }} named rules; " +
+            "${reachable.count { it.startsWith("?") }} unresolved symbols")
         if (args.first() == "--audit") println(grammar.unresolvedSymbols.joinToString())
         println("Import diagnostics: ${grammar.diagnostics.size}")
         grammar.diagnostics.take(12).forEach(::println)

@@ -231,9 +231,10 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
             path.text = selectedGlobal.label
             graph.show(selectedGlobal, candidates, showingNext)
             details.text = buildString {
-                append("Все допустимые непосредственные продолжения токена «")
-                    .append(selectedGlobal.label).append("» по правилам Annex A.\n")
-                append("Каждое ребро подтверждено правилом; при проходе нескольких ребер контекст не сохраняется.\n")
+                append("Непосредственные продолжения токена «")
+                    .append(selectedGlobal.label).append("» из транскрипции Annex A.\n")
+                append("Составная цепочка может смешивать разные грамматические контексты. ")
+                    .append("Сверяйте правило ниже с PDF стандарта.\n")
                 append("\nВершин: ").append(tokenGraph.vertexCount)
                     .append("; ребер: ").append(tokenGraph.edgeCount).append("\n")
                 for (candidate in candidates) {
@@ -309,7 +310,7 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
         g2.color = Color(38, 54, 76, 110)
         for (x in 18 until width step 32) for (y in 18 until height step 32) g2.fillOval(x, y, 2, 2)
 
-        val centerY = maxOf(220, 70 + successors.size * 32)
+        val centerY = 220
         val x = 65
         val w = 225
         val h = 82
@@ -319,7 +320,7 @@ private class GraphCanvas(private val onChoose: (Candidate) -> Unit) : JPanel() 
         g2.stroke = BasicStroke(2f)
         g2.draw(RoundRectangle2D.Float(x.toFloat(), (centerY - 40).toFloat(), w.toFloat(), h.toFloat(), 22f, 22f))
         g2.font = Font("SansSerif", Font.BOLD, 20)
-        g2.drawString(current?.label ?: "начало", x + 17, centerY - 2)
+        g2.drawString(current?.label?.take(19) ?: "начало", x + 17, centerY - 2)
         g2.font = Font("Monospaced", Font.PLAIN, 11)
         g2.color = muted
         g2.drawString(current?.name ?: "grammar", x + 17, centerY + 20)

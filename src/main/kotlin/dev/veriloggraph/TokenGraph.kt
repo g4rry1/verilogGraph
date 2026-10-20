@@ -11,16 +11,18 @@ class TokenGraph(grammar: Grammar, private val catalog: TokenCatalog) {
 
     private val facts = mutableMapOf<String, Facts>()
     private val edges = mutableMapOf<String, MutableMap<String, MutableSet<String>>>()
+    private val rootRules = grammar.reachableFrom("source_text", "library_text")
+    private val rootProductions = grammar.productions.filter { it.left in rootRules }
 
     val vertexCount: Int get() = catalog.kinds.size
     val edgeCount: Int get() = edges.values.sumOf { it.size }
 
     init {
-        for (production in grammar.productions) facts.getOrPut(production.left, ::Facts)
+        for (production in rootProductions) facts.getOrPut(production.left, ::Facts)
         var changed: Boolean
         do {
             changed = false
-            for (production in grammar.productions) {
+            for (production in rootProductions) {
                 val fact = facts.getValue(production.left)
                 val productive = production.right.all { symbol ->
                     symbol is Symbol.Token || symbol is Symbol.Rule && facts[symbol.name]?.productive == true
@@ -41,7 +43,7 @@ class TokenGraph(grammar: Grammar, private val catalog: TokenCatalog) {
             }
         } while (changed)
 
-        for (production in grammar.productions) {
+        for (production in rootProductions) {
             if (production.right.any { it is Symbol.Rule && facts[it.name]?.productive != true }) continue
             val symbols = production.right
             for (i in symbols.indices) {
