@@ -107,9 +107,35 @@ fun main(args: Array<String>) {
         explorer.reset("number")
         check(explorer.advance("IntegerBase"))
         check(explorer.next().map { it.token.name }.toSet() ==
-            setOf("IntegerLiteral", "Identifier", "Question"))
+            setOf("IntegerLiteral", "Identifier", "Question", "RealLiteral"))
         check(explorer.advance("Question"))
         check("Identifier" in explorer.next().map { it.token.name })
+        check("RealLiteral" in explorer.next().map { it.token.name })
+        fun checkNumericPath(root: String, vararg kinds: String) {
+            explorer.reset(root)
+            for (kind in kinds) {
+                check(explorer.advance(kind)) { "$root rejects ${kinds.joinToString()} at $kind" }
+            }
+            check(explorer.isComplete()) { "$root cannot end after ${kinds.joinToString()}" }
+        }
+        // Annex A values 1x?0, 7z?3, and 1e2a?f are split by slang's lexer.
+        checkNumericPath("binary_number", "IntegerBase", "IntegerLiteral", "Identifier",
+            "Question", "IntegerLiteral")
+        checkNumericPath("octal_number", "IntegerBase", "IntegerLiteral", "Identifier",
+            "Question", "IntegerLiteral")
+        checkNumericPath("hex_number", "IntegerBase", "RealLiteral", "Identifier",
+            "Question", "Identifier")
+        checkNumericPath("hex_number", "IntegerLiteral", "IntegerBase", "Question",
+            "RealLiteral", "Question", "IntegerLiteral")
+        explorer.reset("@lexer_binary_value")
+        check(explorer.advance("Identifier"))
+        check(explorer.next().map { it.token.name }.toSet() == setOf("Question"))
+        explorer.reset("@lexer_hex_value")
+        check(explorer.advance("RealLiteral"))
+        check(explorer.next().map { it.token.name }.toSet() == setOf("Identifier", "Question"))
+        check("binary_value" in graph.evidence("IntegerLiteral", "Identifier"))
+        check("octal_value" in graph.evidence("Identifier", "Question"))
+        check("hex_value" in graph.evidence("RealLiteral", "Identifier"))
         explorer.reset("edge_control_specifier")
         check(explorer.advance("EdgeKeyword"))
         check(explorer.advance("OpenBracket"))

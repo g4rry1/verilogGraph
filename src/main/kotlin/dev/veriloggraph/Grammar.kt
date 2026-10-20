@@ -108,6 +108,10 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         val rawRules = splitRules(text)
         val names = rawRules.keys
         for (name in names) {
+            if (name in vectorValues) {
+                emitVectorValue(name)
+                continue
+            }
             for (kinds in lexicalSequences(name).orEmpty()) {
                 val alias = "@lexer_$name"
                 output += Production(output.size, alias, kinds.map(Symbol::Token), name)
@@ -115,7 +119,7 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         }
         for ((name, source) in rawRules) {
             // Annex A describes lexemes as characters; slang already groups them into TokenKind.
-            if (lexicalClass(name) != null || lexicalSequences(name) != null) continue
+            if (lexicalClass(name) != null || lexicalSequences(name) != null || name in vectorValues) continue
             try {
                 val words = tokenize(source.text.substringAfter("::="))
                 val expression = ExpressionParser(words).parse()
@@ -284,6 +288,8 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         catalog.bySpelling[word]?.let { return Symbol.Token(it.name) }
         lexicalClass(word)?.let { return Symbol.Token(it) }
         lexicalClass(plain)?.let { return Symbol.Token(it) }
+        if (word in vectorValues) return Symbol.Rule("@lexer_$word")
+        if (plain in vectorValues) return Symbol.Rule("@lexer_$plain")
         lexicalSequences(word)?.let { return Symbol.Rule("@lexer_$word") }
         lexicalSequences(plain)?.let { return Symbol.Rule("@lexer_$plain") }
         if (word in names) return Symbol.Rule(word)
@@ -328,11 +334,6 @@ class GrammarImporter(private val catalog: TokenCatalog) {
                     listOf("IntegerLiteral", "IntegerBase") + value)
             }
         }
-        // Each branch has a one-token witness in Annex A's digit grammar: 1, x, or ?.
-        // slang Lexer's IntegerBase is followed by exactly these TokenKind values
-        // for those spellings. Longer digit strings may span multiple lexer tokens.
-        "binary_value", "octal_value", "hex_value" ->
-            listOf("IntegerLiteral", "Identifier", "Question").map(::listOf)
         "x_digit" -> listOf(listOf("Identifier"))
         "z_digit" -> listOf(listOf("Identifier"), listOf("Question"))
         // UDP table symbols are single source characters. slang lexes the
@@ -348,5 +349,34 @@ class GrammarImporter(private val catalog: TokenCatalog) {
             listOf("IntegerLiteral", "Identifier")
         )
         else -> null
+    }
+
+    private val vectorValues = setOf("binary_value", "octal_value", "hex_value")
+
+    /** Token boundaries within Annex A's contiguous vector digits, using slang's Lexer and NumberParser. */
+    private fun emitVectorValue(name: String) {
+        val start = "@lexer_$name"
+        val kinds = if (name == "hex_value")
+            listOf("IntegerLiteral", "Identifier", "Question", "RealLiteral")
+        else listOf("IntegerLiteral", "Identifier", "Question")
+        fun after(kind: String) = "${start}_after_$kind"
+        fun add(left: String, vararg right: Symbol) {
+            output += Production(output.size, left, right.toList(), name)
+        }
+
+        for (kind in kinds) add(start, Symbol.Token(kind), Symbol.Rule(after(kind)))
+        for (kind in kinds) {
+            val state = after(kind)
+            add(state) // The digit string may end after any token.
+            // Adjacent letters / digits / underscores are swallowed by one Identifier.
+            // Adjacent numeric chunks are swallowed by one IntegerLiteral or RealLiteral.
+            // A '?' separates either kind and is itself one Question token.
+            val following = when (kind) {
+                "Identifier" -> listOf("Question")
+                "Question" -> kinds
+                else -> listOf("Identifier", "Question")
+            }
+            for (next in following) add(state, Symbol.Token(next), Symbol.Rule(after(next)))
+        }
     }
 }
