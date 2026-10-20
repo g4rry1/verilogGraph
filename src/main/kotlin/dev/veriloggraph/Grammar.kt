@@ -38,7 +38,7 @@ class Grammar internal constructor(
 
     companion object {
         fun bundled(catalog: TokenCatalog): Grammar {
-            val text = requireNotNull(Grammar::class.java.getResourceAsStream("/ieee1800-2023-annex-a.txt"))
+            val text = requireNotNull(Grammar::class.java.getResourceAsStream("/ieee1800-2023-annex-a-styled.txt"))
                 .bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             return GrammarImporter(catalog).parse(text)
         }
@@ -53,12 +53,14 @@ private sealed interface Expr {
     data class Repeat(val child: Expr) : Expr
 }
 
-private class ExpressionParser(private val words: List<String>) {
+private data class Lexeme(val value: String, val literal: Boolean)
+
+private class ExpressionParser(private val words: List<Lexeme>) {
     private var position = 0
 
     fun parse(): Expr {
         val result = choice(null)
-        require(position == words.size) { "Unexpected '${words[position]}'" }
+        require(position == words.size) { "Unexpected '${words[position].value}'" }
         return result
     }
 
@@ -66,7 +68,7 @@ private class ExpressionParser(private val words: List<String>) {
         val alternatives = mutableListOf<Expr>()
         while (true) {
             alternatives += sequence(end)
-            if (position >= words.size || words[position] != "|") break
+            if (position >= words.size || words[position] != Lexeme("|", false)) break
             position++
         }
         return if (alternatives.size == 1) alternatives.first() else Expr.Choice(alternatives)
@@ -76,13 +78,13 @@ private class ExpressionParser(private val words: List<String>) {
         val items = mutableListOf<Expr>()
         while (position < words.size) {
             val word = words[position]
-            if (word == end || word == "|") break
+            if (end != null && word == Lexeme(end, false) || word == Lexeme("|", false)) break
             position++
             items += when (word) {
-                "[" -> Expr.Optional(group("]"))
-                "{" -> Expr.Repeat(group("}"))
-                "]", "}" -> error("Unexpected '$word'")
-                else -> Expr.Word(word)
+                Lexeme("[", false) -> Expr.Optional(group("]"))
+                Lexeme("{", false) -> Expr.Repeat(group("}"))
+                Lexeme("]", false), Lexeme("}", false) -> error("Unexpected '${word.value}'")
+                else -> Expr.Word(word.value)
             }
         }
         return Expr.Sequence(items)
@@ -90,7 +92,7 @@ private class ExpressionParser(private val words: List<String>) {
 
     private fun group(end: String): Expr {
         val inner = choice(end)
-        require(position < words.size && words[position] == end) { "Missing '$end'" }
+        require(position < words.size && words[position] == Lexeme(end, false)) { "Missing '$end'" }
         position++
         return inner
     }
@@ -105,9 +107,15 @@ class GrammarImporter(private val catalog: TokenCatalog) {
     fun parse(text: String): Grammar {
         val rawRules = splitRules(text)
         val names = rawRules.keys
+        for (name in names) {
+            for (kind in lexicalVariants(name).orEmpty()) {
+                val alias = "@lexer_$name"
+                output += Production(output.size, alias, listOf(Symbol.Token(kind)), name)
+            }
+        }
         for ((name, source) in rawRules) {
             // Annex A describes lexemes as characters; slang already groups them into TokenKind.
-            if (lexicalClass(name) != null) continue
+            if (lexicalClass(name) != null || lexicalVariants(name) != null) continue
             try {
                 val words = tokenize(source.text.substringAfter("::="))
                 val expression = ExpressionParser(words).parse()
@@ -123,7 +131,7 @@ class GrammarImporter(private val catalog: TokenCatalog) {
 
     private fun splitRules(text: String): Map<String, RuleSource> {
         val entries = linkedMapOf<String, RuleSource>()
-        val start = Regex("^([A-Za-z_][A-Za-z_0-9]*(?:,[0-9]+)?)\\s*::=\\s*(.*)$")
+        val start = Regex("^(\\$?[A-Za-z_][A-Za-z_0-9]*(?:,[0-9]+)?)\\s*::=\\s*(.*)$")
         val malformed = Regex("^[A-Za-z_][A-Za-z_0-9]*\\s*(?:::\\s+=|:=).*$")
         var section = "Annex A"
         var ruleSection = section
@@ -172,22 +180,59 @@ class GrammarImporter(private val catalog: TokenCatalog) {
         return entries
     }
 
-    private fun tokenize(text: String): List<String> {
-        // The plain-text transcription loses red/bold terminal markup in Annex A.
-        // We leave ambiguous rules in diagnostics instead of creating an edge.
-        val normalized = text
-            .replace(Regex("(?<=[}\\]])[0-9]+(?:,[0-9]+)*"), "")
-            .replace(Regex("(?<=[;,)])[0-9]+(?:,[0-9]+)*"), "")
-            .replace("| | |", "| ⟨pipe⟩ |")
-            .replace("#(", "# (")
-            .replace("*::*", "* :: *")
-            .replace("(*", "( *")
-            .replace("*)", "* )")
-        return Regex("\\s+|[\\[\\]{}]|[^\\s\\[\\]{}]+")
-            .findAll(normalized)
-            .map { it.value }
-            .filter { it.isNotBlank() }
-            .toList()
+    private fun tokenize(text: String): List<Lexeme> {
+        val words = mutableListOf<Lexeme>()
+        val spans = Regex("⟦([^⟧]*)⟧")
+        var end = 0
+        fun ordinary(part: String) {
+            Regex("[\\[\\]{}]|[^\\s\\[\\]{}]+")
+                .findAll(part).forEach { words += Lexeme(it.value, false) }
+        }
+        for (span in spans.findAll(text)) {
+            ordinary(text.substring(end, span.range.first))
+            // Annex A prints the assignment pattern opener as red "' {".
+            // slang Lexer.cpp emits one ApostropheOpenBrace for the adjacent form.
+            val literalText = span.groupValues[1]
+                .replace("' {", "'{")
+                // The PDF prints the implication/repetition arrow with an en dash;
+                // slang's token spelling and the standard's prose use ASCII "->".
+                .replace("–>", "->")
+            for (piece in literalText.split(Regex("\\s+"))) {
+                if (piece.isBlank()) continue
+                val basedDigit = Regex("(1)?'[bB]([01xX])").matchEntire(piece)
+                if (basedDigit != null) {
+                    // The PDF writes scalar constants as one red lexeme. slang
+                    // emits size, base, and value as separate TokenKind values.
+                    if (basedDigit.groupValues[1].isNotEmpty()) words += Lexeme("1", true)
+                    words += Lexeme("⟨IntegerBase⟩", true)
+                    words += Lexeme(if (basedDigit.groupValues[2] in setOf("0", "1")) basedDigit.groupValues[2] else "⟨Identifier⟩", true)
+                    continue
+                }
+                if (piece in catalog.bySpelling || piece.matches(Regex("[0-9]+")) ||
+                    piece.startsWith('"') || piece.startsWith('$') || piece.matches(Regex("'[01xXzZ]"))) {
+                    words += Lexeme(piece, true)
+                    continue
+                }
+                val spellings = catalog.bySpelling.keys.sortedByDescending { it.length }
+                val memo = mutableMapOf<String, List<String>?>()
+                fun segment(rest: String): List<String>? {
+                    if (rest.isEmpty()) return emptyList()
+                    if (rest in memo) return memo[rest]
+                    val choices = spellings.filter { rest.startsWith(it) } +
+                        listOfNotNull(Regex("^[0-9]+").find(rest)?.value)
+                    for (choice in choices) {
+                        val tail = segment(rest.substring(choice.length))
+                        if (tail != null) return (listOf(choice) + tail).also { memo[rest] = it }
+                    }
+                    memo[rest] = null
+                    return null
+                }
+                words += (segment(piece) ?: listOf(piece)).map { Lexeme(it, true) }
+            }
+            end = span.range.last + 1
+        }
+        ordinary(text.substring(end))
+        return words
     }
 
     private fun alternatives(expr: Expr): List<Expr> =
@@ -223,18 +268,23 @@ class GrammarImporter(private val catalog: TokenCatalog) {
     }
 
     private fun resolve(word: String, names: Set<String>): Symbol {
-        if (word == "⟨pipe⟩") return Symbol.Token(requireNotNull(catalog.bySpelling["|"]).name)
+        if (word == "⟨IntegerBase⟩") return Symbol.Token("IntegerBase")
+        if (word == "⟨Identifier⟩") return Symbol.Token("Identifier")
+        if (word == "PATHPULSE$") return Symbol.Token("Identifier")
         val plain = word.replace(Regex("[0-9]+$"), "")
         catalog.bySpelling[word]?.let { return Symbol.Token(it.name) }
+        lexicalClass(word)?.let { return Symbol.Token(it) }
+        lexicalClass(plain)?.let { return Symbol.Token(it) }
+        lexicalVariants(word)?.let { return Symbol.Rule("@lexer_$word") }
+        lexicalVariants(plain)?.let { return Symbol.Rule("@lexer_$plain") }
+        if (word in names) return Symbol.Rule(word)
         if (word.startsWith('$') && word.length > 1 && word[1].isLetter())
             return Symbol.Token("SystemIdentifier")
+        if (word.matches(Regex("'[01xXzZ]"))) return Symbol.Token("UnbasedUnsizedLiteral")
         if (word.matches(Regex("[0-9]+"))) return Symbol.Token("IntegerLiteral")
         if (word.startsWith('"') && word.endsWith('"')) return Symbol.Token("StringLiteral")
         if (word in setOf("option", "type_option", "sample", "std", "randomize", "incdir"))
             return Symbol.Token("Identifier")
-        lexicalClass(word)?.let { return Symbol.Token(it) }
-        lexicalClass(plain)?.let { return Symbol.Token(it) }
-        if (word in names) return Symbol.Rule(word)
         if (plain in names) return Symbol.Rule(plain)
         catalog.bySpelling[plain]?.let { return Symbol.Token(it.name) }
         return Symbol.Rule("?${word}")
@@ -242,12 +292,32 @@ class GrammarImporter(private val catalog: TokenCatalog) {
 
     private fun lexicalClass(name: String): String? = when (name) {
         "identifier", "simple_identifier", "escaped_identifier" -> "Identifier"
+        "c_identifier" -> "Identifier"
         "system_tf_identifier" -> "SystemIdentifier"
         "unsigned_number" -> "IntegerLiteral"
         "real_number", "fixed_point_number" -> "RealLiteral"
         "time_literal" -> "TimeLiteral"
         "string_literal", "quoted_string", "triple_quoted_string" -> "StringLiteral"
         "unbased_unsized_literal" -> "UnbasedUnsizedLiteral"
+        "decimal_base", "binary_base", "octal_base", "hex_base" -> "IntegerBase"
+        // slang Parser_members.cpp::parseFilePathSpec synthesizes this TokenKind.
+        "file_path_spec" -> "IncludeFileName"
+        else -> null
+    }
+
+    private fun lexicalVariants(name: String): List<String>? = when (name) {
+        // Each branch has a one-token witness in Annex A's digit grammar: 1, x, or ?.
+        // slang Lexer's IntegerBase is followed by exactly these TokenKind values
+        // for those spellings. Longer digit strings may span multiple lexer tokens.
+        "binary_value", "octal_value", "hex_value" ->
+            listOf("IntegerLiteral", "Identifier", "Question")
+        "x_digit" -> listOf("Identifier")
+        "z_digit" -> listOf("Identifier", "Question")
+        // UDP table symbols are single source characters. slang lexes the
+        // letter variants as Identifier and the punctuation as its own kind.
+        "output_symbol" -> listOf("IntegerLiteral", "Identifier")
+        "level_symbol" -> listOf("IntegerLiteral", "Identifier", "Question")
+        "edge_symbol" -> listOf("Identifier", "Star")
         else -> null
     }
 }

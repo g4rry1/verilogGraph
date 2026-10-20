@@ -235,7 +235,7 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
             graph.show(selectedGlobal, candidates, showingNext)
             details.text = buildString {
                 append("Непосредственные продолжения токена «")
-                    .append(selectedGlobal.label).append("» из транскрипции Annex A.\n")
+                    .append(selectedGlobal.label).append("» по Annex A.\n")
                 append("Составная цепочка может смешивать разные грамматические контексты. ")
                     .append("Сверяйте правило ниже с PDF стандарта.\n")
                 append("\nВершин: ").append(tokenGraph.vertexCount)
@@ -265,7 +265,7 @@ class GraphWindow(private val catalog: TokenCatalog, private val grammar: Gramma
                         .append(source.text.take(320)).append("\n")
                 }
             }
-            append("\nНеразрешённых обозначений исходной транскрипции: ")
+            append("\nНеразрешённых обозначений Annex A: ")
                 .append(grammar.unresolvedSymbols.size).append("; см. --audit.\n")
         }
         details.caretPosition = 0

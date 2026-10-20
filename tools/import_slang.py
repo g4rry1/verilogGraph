@@ -38,7 +38,11 @@ def main() -> None:
     (target / "SOURCE.txt").write_text(
         "IEEE Std 1800-2023, Annex A (formal syntax)\n"
         "https://ieeexplore.ieee.org/document/10458102\n"
-        "Grammar transcription and lexer inventory: MikePopoloski/slang (MIT license)\n"
+        "Styled Annex A extraction from public PDF:\n"
+        "https://www.iccircle.com/static/upload/img20240319175450.pdf\n"
+        "PDF SHA-256: 203fbcccbbae90cef401a3acd31835c8cd1507e8f12b2e069046d4f316e317c9\n"
+        "Command: python3 tools/extract_ieee_pdf.py /path/to/ieee1800-2023.pdf\n"
+        "Plain grammar transcription and lexer inventory: MikePopoloski/slang (MIT license)\n"
         f"https://github.com/MikePopoloski/slang/tree/{revision}/scripts\n"
         f"slang revision: {revision}\n"
         "Input: scripts/grammar.txt, scripts/tokenkinds.txt, "

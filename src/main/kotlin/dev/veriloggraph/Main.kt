@@ -62,6 +62,46 @@ fun main(args: Array<String>) {
         check(explorer.advance("Semicolon"))
         check(explorer.advance("EndModuleKeyword"))
         check(explorer.isComplete())
+        explorer.reset("assignment_pattern")
+        check(explorer.next().map { it.token.name }.toSet() == setOf("ApostropheOpenBrace"))
+        check(explorer.advance("ApostropheOpenBrace"))
+        check("OpenBrace" in graph.successors("Identifier").map { it.token.name })
+        check("CloseBracket" in graph.successors("Identifier").map { it.token.name })
+        explorer.reset("binary_number")
+        println("Binary number starts: ${explorer.next().joinToString { it.token.name }}")
+        check(explorer.next().map { it.token.name }.toSet() == setOf("IntegerLiteral", "IntegerBase"))
+        check(explorer.advance("IntegerBase"))
+        check(explorer.next().map { it.token.name }.toSet() ==
+            setOf("IntegerLiteral", "Identifier", "Question"))
+        explorer.reset("system_timing_check")
+        check(explorer.next().map { it.token.name }.toSet() == setOf("SystemIdentifier"))
+        explorer.reset("library_declaration")
+        check(explorer.advance("LibraryKeyword"))
+        check(explorer.advance("Identifier"))
+        check(explorer.advance("IncludeFileName"))
+        check("IncDirKeyword" in graph.successors("Minus").map { it.token.name })
+        explorer.reset("init_val")
+        check(explorer.advance("IntegerLiteral"))
+        check("IntegerBase" in explorer.next().map { it.token.name })
+        check(explorer.advance("IntegerBase"))
+        check(explorer.next().map { it.token.name }.toSet() == setOf("IntegerLiteral", "Identifier"))
+        explorer.reset("combinational_entry")
+        check(explorer.next().map { it.token.name }.toSet() ==
+            setOf("IntegerLiteral", "Identifier", "Question"))
+        check(explorer.advance("Identifier"))
+        check("Colon" in explorer.next().map { it.token.name })
+        explorer.reset("pulse_control_specparam")
+        check("Identifier" in explorer.next().map { it.token.name })
+        check(grammar.byLeft["constraint_expression"].orEmpty().any { production ->
+            Symbol.Token("MinusArrow") in production.right
+        })
+        check(grammar.byLeft["trans_range_list"].orEmpty().any { production ->
+            Symbol.Token("OpenBracket") in production.right && Symbol.Token("MinusArrow") in production.right
+        })
+        explorer.reset("decimal_number")
+        check(explorer.advance("IntegerBase"))
+        check(explorer.next().map { it.token.name }.toSet() ==
+            setOf("IntegerLiteral", "Identifier", "Question"))
         println("Grammar path checks passed")
         return
     }

@@ -43,8 +43,21 @@ class TokenGraph(grammar: Grammar, private val catalog: TokenCatalog) {
             }
         } while (changed)
 
+        val usableRules = linkedSetOf<String>()
+        val queue = ArrayDeque(listOf("source_text", "library_text"))
+        while (queue.isNotEmpty()) {
+            val rule = queue.removeFirst()
+            if (!usableRules.add(rule)) continue
+            for (production in rootProductions) {
+                if (production.left != rule || !production.isProductive()) continue
+                for (symbol in production.right) {
+                    if (symbol is Symbol.Rule && symbol.name !in usableRules) queue.add(symbol.name)
+                }
+            }
+        }
+
         for (production in rootProductions) {
-            if (production.right.any { it is Symbol.Rule && facts[it.name]?.productive != true }) continue
+            if (production.left !in usableRules || !production.isProductive()) continue
             val symbols = production.right
             for (i in symbols.indices) {
                 for (j in i + 1 until symbols.size) {
@@ -85,6 +98,10 @@ class TokenGraph(grammar: Grammar, private val catalog: TokenCatalog) {
 
     private fun nullable(symbol: Symbol): Boolean =
         symbol is Symbol.Rule && facts[symbol.name]?.nullable == true
+
+    private fun Production.isProductive(): Boolean = right.all { symbol ->
+        symbol is Symbol.Token || symbol is Symbol.Rule && facts[symbol.name]?.productive == true
+    }
 
     private fun first(symbol: Symbol): Set<String> = when (symbol) {
         is Symbol.Token -> setOf(symbol.kind)

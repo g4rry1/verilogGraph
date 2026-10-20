@@ -1,6 +1,10 @@
 IEEE Std 1800-2023, Annex A (formal syntax)
 https://ieeexplore.ieee.org/document/10458102
-Grammar transcription and lexer inventory: MikePopoloski/slang (MIT license)
+Styled Annex A extraction from public PDF:
+https://www.iccircle.com/static/upload/img20240319175450.pdf
+PDF SHA-256: 203fbcccbbae90cef401a3acd31835c8cd1507e8f12b2e069046d4f316e317c9
+Command: python3 tools/extract_ieee_pdf.py /path/to/ieee1800-2023.pdf
+Plain grammar transcription and lexer inventory: MikePopoloski/slang (MIT license)
 https://github.com/MikePopoloski/slang/tree/dcc7ee97fb14f9be003de71e100d0c9601a993c9/scripts
 slang revision: dcc7ee97fb14f9be003de71e100d0c9601a993c9
 Input: scripts/grammar.txt, scripts/tokenkinds.txt, source/parsing/LexerFacts.cpp

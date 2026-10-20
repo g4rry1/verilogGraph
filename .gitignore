@@ -3,4 +3,5 @@ build/
 .history/
 .idea/
 *.iml
+__pycache__/
 
